@@ -36,6 +36,8 @@ server.on('upgrade', (request, socket, head) => {
   }
 });
 
-server.listen(process.env.PORT || 10000, () => {
-  console.log('Proxy escuchando en puerto', process.env.PORT || 10000);
+const PORT = process.env.PORT || 10000;
+
+server.listen(PORT, () => {
+  console.log('Proxy escuchando en puerto', PORT);
 });
