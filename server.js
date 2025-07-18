@@ -21,7 +21,7 @@ wss.on('connection', (ws) => {
   ws.on('close', () => sshConnection.end());
 
   sshConnection.on('error', (err) => {
-    console.error('SSH connection error:', err);
+    console.error('❌ Error en conexión SSH:', err);
     ws.close();
   });
 });
@@ -36,8 +36,13 @@ server.on('upgrade', (request, socket, head) => {
   }
 });
 
-const PORT = process.env.PORT || 10000;
+// Asegurar que PORT esté definido
+const PORT = process.env.PORT;
+if (!PORT) {
+  console.error('❌ Error: la variable de entorno PORT no está definida.');
+  process.exit(1);
+}
 
 server.listen(PORT, () => {
-  console.log('Proxy escuchando en puerto', PORT);
+  console.log(`✅ Proxy escuchando correctamente en el puerto ${PORT}`);
 });
