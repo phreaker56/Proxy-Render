@@ -1,13 +1,13 @@
-
 const http = require('http');
 const WebSocket = require('ws');
 const net = require('net');
 
 const server = http.createServer();
-const wss = new WebSocket.Server({ server });
+
+const wss = new WebSocket.Server({ noServer: true });
 
 wss.on('connection', (ws) => {
-  const sshConnection = net.connect(22, '150.230.38.153'); // IP pública de tu VPS
+  const sshConnection = net.connect(22, '150.230.38.153'); // IP de tu VPS
 
   ws.on('message', (message) => {
     sshConnection.write(message);
@@ -21,11 +21,21 @@ wss.on('connection', (ws) => {
   ws.on('close', () => sshConnection.end());
 
   sshConnection.on('error', (err) => {
-    console.error('Error en conexión SSH:', err);
+    console.error('SSH connection error:', err);
     ws.close();
   });
 });
 
+server.on('upgrade', (request, socket, head) => {
+  if (request.url === '/app53') {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
+  } else {
+    socket.destroy();
+  }
+});
+
 server.listen(process.env.PORT || 10000, () => {
-  console.log('Proxy WebSocket a SSH escuchando en puerto', process.env.PORT || 10000);
+  console.log('Proxy escuchando en puerto', process.env.PORT || 10000);
 });
