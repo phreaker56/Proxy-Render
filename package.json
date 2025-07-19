@@ -1,16 +1,17 @@
 {
   "name": "ssh-websocket-proxy",
   "version": "1.0.0",
-  "description": "WebSocket proxy para SSH usando Node.js",
+  "description": "Proxy WebSocket para conectar con VPS SSH",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "engines": {
-    "node": ">=18"
-  },
   "dependencies": {
-    "express": "^4.18.2",
-    "ws": "^8.15.1"
-  }
+    "ws": "^8.13.0"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "author": "yorishi",
+  "license": "MIT"
 }
