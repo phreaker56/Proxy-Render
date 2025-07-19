@@ -1,16 +1,12 @@
 {
   "name": "ssh-websocket-proxy",
   "version": "1.0.0",
-  "description": "Proxy WebSocket a SSH",
-  "main": "server.js",
-  "type": "module",
+  "description": "Proxy WebSocket para túnel SSH",
+  "main": "index.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node index.js"
   },
   "dependencies": {
-    "ws": "^8.15.0"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "ws": "^8.0.0"
   }
 }
