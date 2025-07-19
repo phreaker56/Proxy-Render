@@ -1,54 +1,52 @@
-import { createServer } from 'http';
-import { WebSocketServer } from 'ws';
-import net from 'net';
+const WebSocket = require('ws');
+const net = require('net');
 
-// IP y puerto de tu servidor SSH
-const SSH_HOST = '146.235.209.32';
-const SSH_PORT = 22;
+// Usa el puerto proporcionado por la plataforma o por defecto 443
+const PORT = process.env.PORT || 443;
+const server = new WebSocket.Server({ port: PORT });
 
-const server = createServer();
-const wss = new WebSocketServer({ server });
+console.log(`✅ WebSocket SSH Proxy corriendo en el puerto ${PORT}`);
 
-wss.on('connection', (ws) => {
-  console.log('[+] Nueva conexión WebSocket');
+server.on('connection', function connection(ws, req) {
+  console.log(`🔗 Nueva conexión desde ${req.socket.remoteAddress}`);
 
-  // Conexión TCP al servidor SSH
-  const sshSocket = net.connect(SSH_PORT, SSH_HOST, () => {
-    console.log('[+] Conectado al servidor SSH');
+  // Conexión al VPS SSH
+  const sshSocket = net.connect({ host: '146.235.209.234', port: 22 }, () => {
+    console.log(`✅ Conectado a SSH del VPS`);
   });
 
-  // WS ➜ TCP
-  ws.on('message', (msg) => {
-    if (sshSocket.writable) {
-      sshSocket.write(msg);
+  // Reenvía datos del cliente WebSocket al VPS
+  ws.on('message', (data) => {
+    sshSocket.write(data);
+  });
+
+  // Reenvía datos del VPS al WebSocket del cliente
+  sshSocket.on('data', (chunk) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(chunk);
     }
   });
 
-  // TCP ➜ WS
-  sshSocket.on('data', (data) => {
-    if (ws.readyState === ws.OPEN) {
-      ws.send(data);
-    }
-  });
-
-  // Manejo de cierres
+  // Cierre de túnel si el cliente se desconecta
   ws.on('close', () => {
     sshSocket.end();
-    console.log('[-] WebSocket cerrado');
+    console.log(`❌ Cliente WebSocket desconectado`);
   });
 
+  // Cierre de túnel si el servidor SSH se desconecta
   sshSocket.on('close', () => {
     ws.close();
-    console.log('[-] Socket TCP cerrado');
+    console.log(`❌ SSH desconectado`);
+  });
+
+  // Manejo de errores
+  ws.on('error', (err) => {
+    console.error(`⚠️ WebSocket error:`, err.message);
+    sshSocket.end();
   });
 
   sshSocket.on('error', (err) => {
-    console.error('[!] Error en SSH socket:', err.message);
+    console.error(`⚠️ SSH error:`, err.message);
     ws.close();
   });
-});
-
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`[✓] Proxy corriendo en puerto ${PORT}`);
 });
