@@ -1,49 +1,25 @@
+const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
-const net = require('net');
 
-// Verifica que Render o Railway hayan asignado el puerto
-const PORT = process.env.PORT;
-if (!PORT) {
-  console.error('❌ No se detectó el puerto asignado por el host.');
-  process.exit(1);
-}
+const app = express();
+const server = http.createServer(app);
 
-const server = http.createServer((req, res) => {
-  if (req.url === '/') {
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end('<h1>🟢 Proxy está corriendo correctamente.</h1>');
-  } else {
-    res.writeHead(404);
-    res.end('Not Found');
-  }
-});
-
-const wss = new WebSocket.Server({ noServer: true });
+// WebSocket solo en /app53
+const wss = new WebSocket.Server({ server, path: '/app53' });
 
 wss.on('connection', (ws) => {
-  const sshConnection = net.connect(22, '150.230.38.153'); // IP VPS
-
-  ws.on('message', (message) => sshConnection.write(message));
-  sshConnection.on('data', (data) => ws.send(data));
-  sshConnection.on('end', () => ws.close());
-  ws.on('close', () => sshConnection.end());
-  sshConnection.on('error', (err) => {
-    console.error('❌ Error en conexión SSH:', err.message);
-    ws.close();
+  // No envíes ningún mensaje para que quede en silencio
+  ws.on('message', () => {
+    // Ignorar cualquier mensaje
   });
 });
 
-server.on('upgrade', (request, socket, head) => {
-  if (request.url === '/app53') {
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      wss.emit('connection', ws, request);
-    });
-  } else {
-    socket.destroy();
-  }
+// Todas las rutas HTTP devuelven 404 sin cuerpo
+app.use((req, res) => {
+  res.status(404).end(); // sin texto
 });
 
-server.listen(PORT, () => {
-  console.log(`✅ Proxy activo y escuchando en el puerto ${PORT}`);
-});
+// Ocultar el log de "servidor corriendo"
+const PORT = process.env.PORT || 3000;
+server.listen(PORT);
