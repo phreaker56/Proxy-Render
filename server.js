@@ -1,30 +1,40 @@
-const express = require('express');
-const http = require('http');
 const WebSocket = require('ws');
 const net = require('net');
 
-const app = express();
-const server = http.createServer(app);  // Railway levantará esto
-const wss = new WebSocket.Server({ server });  // y esto intercepta WebSocket
+const PORT = process.env.PORT || 443;
+const server = new WebSocket.Server({ port: PORT });
 
-wss.on('connection', (ws, req) => {
-  console.log(`🔗 Conexión WebSocket de ${req.socket.remoteAddress}`);
+console.log(`✅ Proxy WebSocket corriendo en puerto ${PORT}`);
+
+server.on('connection', (ws, req) => {
+  const hostHeader = req.headers['host'];
+  console.log(`Nueva conexión con Host header: ${hostHeader}`);
+
+  // Solo aceptar si el host es el que quieres simular
+  if (hostHeader !== 'www.googletagmanager.com') {
+    ws.close(1008, 'Host no permitido');
+    return;
+  }
 
   const sshSocket = net.connect({ host: '146.235.209.234', port: 22 }, () => {
-    console.log(`✅ Conectado al VPS por SSH`);
+    console.log('Conectado a VPS SSH');
   });
 
-  ws.on('message', (data) => sshSocket.write(data));
-  sshSocket.on('data', (chunk) => ws.readyState === WebSocket.OPEN && ws.send(chunk));
+  ws.on('message', data => sshSocket.write(data));
+  sshSocket.on('data', chunk => {
+    if (ws.readyState === WebSocket.OPEN) ws.send(chunk);
+  });
+
   ws.on('close', () => sshSocket.end());
   sshSocket.on('close', () => ws.close());
 
-  ws.on('error', (err) => { console.error('WebSocket error:', err); sshSocket.end(); });
-  sshSocket.on('error', (err) => { console.error('SSH socket error:', err); ws.close(); });
-});
+  ws.on('error', err => {
+    console.error('Error WS:', err.message);
+    sshSocket.end();
+  });
 
-// Railway asigna el puerto por env var
-const PORT = process.env.PORT || 443;
-server.listen(PORT, () => {
-  console.log(`✅ Servidor corriendo en puerto ${PORT}`);
+  sshSocket.on('error', err => {
+    console.error('Error SSH:', err.message);
+    ws.close();
+  });
 });
