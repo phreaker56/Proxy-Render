@@ -1,22 +1,33 @@
-const express = require('express');
-const http = require('http');
-const WebSocket = require('ws');
+import express from 'express';
+import { createServer } from 'http';
+import { createProxyServer } from 'http-proxy';
 
 const app = express();
-const server = http.createServer(app);
-
-// WebSocket en /app53
-const wss = new WebSocket.Server({ server, path: '/app53' });
-
-wss.on('connection', (ws) => {
-  ws.on('message', () => {});
+const server = createServer(app);
+const proxy = createProxyServer({
+  target: {
+    host: '146.235.209.32',
+    port: 22,
+    protocol: 'http:',
+  },
+  ws: true,
+  changeOrigin: true
 });
 
-// 404 para todo lo demás
 app.use((req, res) => {
-  res.status(404).end();
+  proxy.web(req, res, {}, err => {
+    res.writeHead(502);
+    res.end('Proxy error');
+  });
 });
 
-// Iniciar servidor
-const PORT = process.env.PORT || 3000;
-server.listen(PORT);
+server.on('upgrade', (req, socket, head) => {
+  proxy.ws(req, socket, head, {}, err => {
+    socket.end();
+  });
+});
+
+const PORT = process.env.PORT || 8080;
+server.listen(PORT, () => {
+  console.log(`✅ Proxy SSH corriendo en puerto ${PORT}`);
+});
