@@ -1,9 +1,12 @@
 import express from 'express';
 import { createServer } from 'http';
-import { createProxyServer } from 'http-proxy';
+import httpProxy from 'http-proxy';
+
+const { createProxyServer } = httpProxy;
 
 const app = express();
 const server = createServer(app);
+
 const proxy = createProxyServer({
   target: {
     host: '146.235.209.32',
@@ -11,7 +14,7 @@ const proxy = createProxyServer({
     protocol: 'http:',
   },
   ws: true,
-  changeOrigin: true
+  changeOrigin: true,
 });
 
 app.use((req, res) => {
@@ -29,5 +32,5 @@ server.on('upgrade', (req, socket, head) => {
 
 const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
-  console.log(`✅ Proxy SSH corriendo en puerto ${PORT}`);
+  console.log(`✅ Proxy SSH corriendo en el puerto ${PORT}`);
 });
