@@ -2,39 +2,52 @@ const WebSocket = require('ws');
 const net = require('net');
 
 const PORT = process.env.PORT || 443;
+
 const server = new WebSocket.Server({ port: PORT });
 
-console.log(`✅ Proxy WebSocket corriendo en puerto ${PORT}`);
+console.log(`✅ WebSocket SSH Proxy corriendo en el puerto ${PORT}`);
 
 server.on('connection', (ws, req) => {
-  const hostHeader = req.headers['host'];
-  console.log(`Nueva conexión con Host header: ${hostHeader}`);
+  console.log(`🔗 Nueva conexión desde ${req.socket.remoteAddress}`);
 
-  // Solo aceptar si el host es el que quieres simular
-  if (hostHeader !== 'www.googletagmanager.com') {
-    ws.close(1008, 'Host no permitido');
-    return;
-  }
-
+  // Conectamos a tu VPS SSH en IP y puerto 22
   const sshSocket = net.connect({ host: '146.235.209.234', port: 22 }, () => {
-    console.log('Conectado a VPS SSH');
+    console.log('✅ Conectado a VPS SSH');
   });
 
-  ws.on('message', data => sshSocket.write(data));
-  sshSocket.on('data', chunk => {
-    if (ws.readyState === WebSocket.OPEN) ws.send(chunk);
+  // De cliente WebSocket al VPS SSH
+  ws.on('message', (data) => {
+    sshSocket.write(data);
   });
 
-  ws.on('close', () => sshSocket.end());
-  sshSocket.on('close', () => ws.close());
+  // De VPS SSH al cliente WebSocket
+  sshSocket.on('data', (chunk) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(chunk);
+    }
+  });
 
-  ws.on('error', err => {
-    console.error('Error WS:', err.message);
+  // Cierre si cliente se desconecta
+  ws.on('close', () => {
+    sshSocket.end();
+    console.log('❌ Cliente desconectado');
+  });
+
+  // Cierre si VPS SSH se desconecta
+  sshSocket.on('close', () => {
+    ws.close();
+    console.log('❌ VPS SSH desconectado');
+  });
+
+  // Manejo de errores WebSocket
+  ws.on('error', (err) => {
+    console.error('⚠️ Error WebSocket:', err.message);
     sshSocket.end();
   });
 
-  sshSocket.on('error', err => {
-    console.error('Error SSH:', err.message);
+  // Manejo de errores SSH
+  sshSocket.on('error', (err) => {
+    console.error('⚠️ Error SSH:', err.message);
     ws.close();
   });
 });
