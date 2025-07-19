@@ -1,80 +1,53 @@
-import http from 'http';
-import WebSocket, { WebSocketServer } from 'ws';
-import net from 'net';
+const WebSocket = require('ws');
+const net = require('net');
 
-// Puerto que te asigna Railway o por defecto 8080
-const PORT = process.env.PORT || 8080;
+// Puerto que asigna Railway (variable de entorno) o 443 por defecto
+const PORT = process.env.PORT || 443;
 
-// Crear servidor HTTP simple que responde con 404 a todo excepto /app53
-const server = http.createServer((req, res) => {
-  if (req.url === '/app53') {
-    // Respuesta normal a GET sin upgrade (no WebSocket)
-    res.writeHead(200);
-    res.end('WebSocket endpoint for SSH proxy\n');
-  } else {
-    res.writeHead(404);
-    res.end('Not Found');
-  }
-});
+const server = new WebSocket.Server({ port: PORT });
 
-// Crear servidor WebSocket que usa el mismo HTTP server y solo atiende /app53
-const wss = new WebSocketServer({ noServer: true });
+console.log(`✅ WebSocket SSH Proxy corriendo en el puerto ${PORT}`);
 
-wss.on('connection', (ws, req) => {
-  console.log(`🔗 Nueva conexión WebSocket desde ${req.socket.remoteAddress}`);
+server.on('connection', (ws, req) => {
+  console.log(`🔗 Nueva conexión desde ${req.socket.remoteAddress}`);
 
-  // Conectar al VPS SSH
+  // Conectar a tu VPS SSH (IP y puerto 22)
   const sshSocket = net.connect({ host: '146.235.209.234', port: 22 }, () => {
     console.log(`✅ Conectado al servidor SSH`);
   });
 
-  // Enviar datos desde WS a SSH
+  // Datos que vienen del cliente WebSocket se envían al VPS SSH
   ws.on('message', (data) => {
     sshSocket.write(data);
   });
 
-  // Enviar datos desde SSH a WS
+  // Datos que vienen del VPS SSH se envían al WebSocket del cliente
   sshSocket.on('data', (chunk) => {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(chunk);
     }
   });
 
-  // Cierre WS => cerrar SSH
+  // Cierre conexión cuando cliente se desconecta
   ws.on('close', () => {
     sshSocket.end();
-    console.log('❌ Cliente WebSocket desconectado');
+    console.log(`❌ Cliente desconectado`);
   });
 
-  // Cierre SSH => cerrar WS
+  // Cierre conexión cuando VPS SSH se desconecta
   sshSocket.on('close', () => {
     ws.close();
-    console.log('❌ SSH desconectado');
+    console.log(`❌ VPS SSH desconectado`);
   });
 
   // Manejo de errores
   ws.on('error', (err) => {
-    console.error('⚠️ Error WebSocket:', err.message);
+    console.error(`⚠️ Error WebSocket:`, err.message);
     sshSocket.end();
   });
+
   sshSocket.on('error', (err) => {
-    console.error('⚠️ Error SSH:', err.message);
+    console.error(`⚠️ Error SSH:`, err.message);
     ws.close();
   });
-});
-
-// Interceptar upgrade para WebSocket solo en /app53
-server.on('upgrade', (req, socket, head) => {
-  if (req.url === '/app53') {
-    wss.handleUpgrade(req, socket, head, (ws) => {
-      wss.emit('connection', ws, req);
-    });
-  } else {
-    socket.destroy();
-  }
-});
-
-// Iniciar servidor HTTP + WebSocket
-server.listen(PORT, () => {
-  console.log(`✅ Servidor WebSocket SSH Proxy corriendo en puerto ${PORT}`);
 });
