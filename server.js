@@ -1,53 +1,30 @@
+const express = require('express');
+const http = require('http');
 const WebSocket = require('ws');
 const net = require('net');
 
-// Puerto que asigna Railway (variable de entorno) o 443 por defecto
-const PORT = process.env.PORT || 443;
+const app = express();
+const server = http.createServer(app);  // Railway levantará esto
+const wss = new WebSocket.Server({ server });  // y esto intercepta WebSocket
 
-const server = new WebSocket.Server({ port: PORT });
+wss.on('connection', (ws, req) => {
+  console.log(`🔗 Conexión WebSocket de ${req.socket.remoteAddress}`);
 
-console.log(`✅ WebSocket SSH Proxy corriendo en el puerto ${PORT}`);
-
-server.on('connection', (ws, req) => {
-  console.log(`🔗 Nueva conexión desde ${req.socket.remoteAddress}`);
-
-  // Conectar a tu VPS SSH (IP y puerto 22)
   const sshSocket = net.connect({ host: '146.235.209.234', port: 22 }, () => {
-    console.log(`✅ Conectado al servidor SSH`);
+    console.log(`✅ Conectado al VPS por SSH`);
   });
 
-  // Datos que vienen del cliente WebSocket se envían al VPS SSH
-  ws.on('message', (data) => {
-    sshSocket.write(data);
-  });
+  ws.on('message', (data) => sshSocket.write(data));
+  sshSocket.on('data', (chunk) => ws.readyState === WebSocket.OPEN && ws.send(chunk));
+  ws.on('close', () => sshSocket.end());
+  sshSocket.on('close', () => ws.close());
 
-  // Datos que vienen del VPS SSH se envían al WebSocket del cliente
-  sshSocket.on('data', (chunk) => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(chunk);
-    }
-  });
+  ws.on('error', (err) => { console.error('WebSocket error:', err); sshSocket.end(); });
+  sshSocket.on('error', (err) => { console.error('SSH socket error:', err); ws.close(); });
+});
 
-  // Cierre conexión cuando cliente se desconecta
-  ws.on('close', () => {
-    sshSocket.end();
-    console.log(`❌ Cliente desconectado`);
-  });
-
-  // Cierre conexión cuando VPS SSH se desconecta
-  sshSocket.on('close', () => {
-    ws.close();
-    console.log(`❌ VPS SSH desconectado`);
-  });
-
-  // Manejo de errores
-  ws.on('error', (err) => {
-    console.error(`⚠️ Error WebSocket:`, err.message);
-    sshSocket.end();
-  });
-
-  sshSocket.on('error', (err) => {
-    console.error(`⚠️ Error SSH:`, err.message);
-    ws.close();
-  });
+// Railway asigna el puerto por env var
+const PORT = process.env.PORT || 443;
+server.listen(PORT, () => {
+  console.log(`✅ Servidor corriendo en puerto ${PORT}`);
 });
