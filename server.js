@@ -1,36 +1,54 @@
-import express from 'express';
 import { createServer } from 'http';
-import httpProxy from 'http-proxy';
+import { WebSocketServer } from 'ws';
+import net from 'net';
 
-const { createProxyServer } = httpProxy;
+// IP y puerto de tu servidor SSH
+const SSH_HOST = '146.235.209.32';
+const SSH_PORT = 22;
 
-const app = express();
-const server = createServer(app);
+const server = createServer();
+const wss = new WebSocketServer({ server });
 
-const proxy = createProxyServer({
-  target: {
-    host: '146.235.209.32',
-    port: 22,
-    protocol: 'http:',
-  },
-  ws: true,
-  changeOrigin: true,
-});
+wss.on('connection', (ws) => {
+  console.log('[+] Nueva conexión WebSocket');
 
-app.use((req, res) => {
-  proxy.web(req, res, {}, err => {
-    res.writeHead(502);
-    res.end('Proxy error');
+  // Conexión TCP al servidor SSH
+  const sshSocket = net.connect(SSH_PORT, SSH_HOST, () => {
+    console.log('[+] Conectado al servidor SSH');
+  });
+
+  // WS ➜ TCP
+  ws.on('message', (msg) => {
+    if (sshSocket.writable) {
+      sshSocket.write(msg);
+    }
+  });
+
+  // TCP ➜ WS
+  sshSocket.on('data', (data) => {
+    if (ws.readyState === ws.OPEN) {
+      ws.send(data);
+    }
+  });
+
+  // Manejo de cierres
+  ws.on('close', () => {
+    sshSocket.end();
+    console.log('[-] WebSocket cerrado');
+  });
+
+  sshSocket.on('close', () => {
+    ws.close();
+    console.log('[-] Socket TCP cerrado');
+  });
+
+  sshSocket.on('error', (err) => {
+    console.error('[!] Error en SSH socket:', err.message);
+    ws.close();
   });
 });
 
-server.on('upgrade', (req, socket, head) => {
-  proxy.ws(req, socket, head, {}, err => {
-    socket.end();
-  });
-});
-
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`✅ Proxy SSH corriendo en el puerto ${PORT}`);
+  console.log(`[✓] Proxy corriendo en puerto ${PORT}`);
 });
