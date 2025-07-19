@@ -2,9 +2,9 @@
   "name": "ssh-websocket-proxy",
   "version": "1.0.0",
   "description": "Proxy WebSocket para túnel SSH",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "ws": "^8.0.0"
